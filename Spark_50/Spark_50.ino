@@ -34,6 +34,22 @@ bool shooterOn = false;
 bool shooterButtonWasHeld = false;
 unsigned long shooterStartTime = 0;
 
+// Shooter tuning test: press button 2 to start (press again to abort).
+// For each power in TEST_POWERS it rests (shooter off, battery recovers),
+// then runs the shooter at that power while printing "time power voltage"
+// to the PestoLink terminal. When the voltage stops dropping, the wheel
+// has finished spinning up - that time is the spin-up time for that power.
+float TEST_POWERS[] = {0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0};
+int NUM_TEST_POWERS = 7;
+unsigned long TEST_REST_MS = 2000;
+unsigned long TEST_RUN_MS = 3000;
+
+bool testRunning = false;
+int testIndex = 0;
+bool testResting = true;
+unsigned long testStageStart = 0;
+bool testButtonWasHeld = false;
+
 // This creates the drivetrain object, you shouldn't have to mess with this
 NoU_Drivetrain drivetrain(&frontLeftMotor, &frontRightMotor, &rearLeftMotor, &rearRightMotor);
 
@@ -59,10 +75,57 @@ void setup() {
     NoU3.calibrateIMUs(); // this takes exactly one second. Do not move the robot during calibration.
 }
 
+// Runs one step of the shooter test. Call this every loop while the test is on.
+void runShooterTest() {
+    unsigned long now = millis();
+    float power = TEST_POWERS[testIndex];
+
+    if (testResting) {
+        // Shooter off, let the battery voltage recover
+        leftShooter.set(0.0);
+        rightShooter.set(0.0);
+
+        if (now - testStageStart >= TEST_REST_MS) {
+            testResting = false;
+            testStageStart = now;
+        }
+    } else {
+        // Run at this test power and log time / power / voltage
+        leftShooter.set(power);
+        rightShooter.set(power);
+
+        static unsigned long lastTestPrint = 0;
+        if (now - lastTestPrint >= 200) {
+            PestoLink.printfTerminal("%lu ms  %d%%  %.2f V",
+                now - testStageStart, (int)(power * 100), NoU3.getBatteryVoltage());
+            lastTestPrint = now;
+        }
+
+        if (now - testStageStart >= TEST_RUN_MS) {
+            // Move on to the next power level
+            testResting = true;
+            testStageStart = now;
+            testIndex++;
+            if (testIndex >= NUM_TEST_POWERS) {
+                testRunning = false;
+                leftShooter.set(0.0);
+                rightShooter.set(0.0);
+            }
+        }
+    }
+}
+
 void loop() {
     static unsigned long lastPrintTime = 0;
     if (lastPrintTime + 100 < millis()){
         Serial.printf("gyro yaw (radians): %.3f\r\n",  NoU3.yaw * angular_scale );
+
+        // This shows up in the terminal on the PestoLink web app
+        //PestoLink.printfTerminal("yaw: %.2f | intake: %s | shooter: %s",
+        //    NoU3.yaw * angular_scale,
+        //    intakeOn ? "ON" : "off",
+        //    shooterOn ? "ON" : "off");
+
         lastPrintTime = millis();
     }
 
@@ -101,6 +164,17 @@ void loop() {
             intakeMotor.set(0.0);
         }
 
+        // Start or abort the shooter tuning test when button 2 is pressed
+        bool testButtonHeld = PestoLink.buttonHeld(2);
+        if (testButtonHeld && !testButtonWasHeld) {
+            testRunning = !testRunning;
+            testIndex = 0;
+            testResting = true;
+            testStageStart = millis();
+            shooterOn = false;
+        }
+        testButtonWasHeld = testButtonHeld;
+
         // Toggle the shooter when button 1 is pressed (not held)
         bool shooterButtonHeld = PestoLink.buttonHeld(1);
         if (shooterButtonHeld && !shooterButtonWasHeld) {
@@ -111,7 +185,9 @@ void loop() {
         }
         shooterButtonWasHeld = shooterButtonHeld;
 
-        if (shooterOn) {
+        if (testRunning) {
+            runShooterTest();
+        } else if (shooterOn) {
             if (millis() - shooterStartTime < SHOOTER_SPINUP_MS) {
                 // Spin up at full power first
                 leftShooter.set(1.0);
@@ -120,7 +196,7 @@ void loop() {
                 // Then settle at the tuned shooting power
                 leftShooter.set(SHOOTER_TUNED_POWER);
                 rightShooter.set(SHOOTER_TUNED_POWER);
-                
+                PestoLink.printfTerminal("Hello world");
             }
         } else {
             leftShooter.set(0.0);
@@ -135,5 +211,7 @@ void loop() {
         intakeButtonWasHeld = false;
         shooterOn = false;
         shooterButtonWasHeld = false;
+        testRunning = false;
+        testButtonWasHeld = false;
     }
 }
