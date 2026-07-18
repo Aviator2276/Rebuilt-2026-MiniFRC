@@ -80,7 +80,7 @@ constexpr float INTAKE_POWER = 1.00f;
  */
 constexpr bool ENABLE_STEPPED_SHOTS = true;
 
-constexpr float SHOOTER_BASE_POWER = 0.50f;
+constexpr float SHOOTER_BASE_POWER = 0.70f;
 constexpr float SHOOTER_BOOST_POWER = 1.00f;
 constexpr float INDEXER_POWER = 1.00f;
 
