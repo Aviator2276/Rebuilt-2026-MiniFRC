@@ -148,8 +148,8 @@ void loop() {
         float robotPowerX = fieldPowerX * cosA + fieldPowerY * sinA;
         float robotPowerY = -fieldPowerX * sinA + fieldPowerY * cosA;
 
-        //set motor power
-        drivetrain.holonomicDrive(robotPowerX, robotPowerY, rotationPower);
+        //set motor power (raw joystick values; switch back to robotPowerX/Y once the gyro is tuned)
+        drivetrain.holonomicDrive(fieldPowerX, fieldPowerY, rotationPower);
 
         // Toggle the intake when button 0 is pressed (not held)
         bool intakeButtonHeld = PestoLink.buttonHeld(0);
