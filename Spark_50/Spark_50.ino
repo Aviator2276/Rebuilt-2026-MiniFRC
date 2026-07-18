@@ -4,6 +4,8 @@
  * Controls:
  *   Button 0: toggle intake on/off
  *   Button 1: toggle shooter on/off (70% power)
+ *   Button 2: hold to feed balls with the indexer
+ *   Button 3: hold for shooter at max power (overrides the toggle)
  */
 
 #include <PestoLink-Receive.h>
@@ -23,7 +25,7 @@ NoU_Motor indexerMotor(8);
 
 NoU_Drivetrain drivetrain(&frontLeftMotor, &frontRightMotor, &rearLeftMotor, &rearRightMotor);
 
-float SHOOTER_POWER = 0.7;
+float SHOOTER_POWER = 0.5;
 
 bool intakeOn = false;
 bool intakeButtonWasHeld = false;
@@ -42,7 +44,11 @@ void setup() {
 }
 
 void loop() {
-    PestoLink.printBatteryVoltage(NoU3.getBatteryVoltage());
+    float batteryVoltage = NoU3.getBatteryVoltage();
+    PestoLink.printBatteryVoltage(batteryVoltage);
+
+    // "voltage:<value>@<ms>" lines show up as a chart in the PestoLink terminal
+    PestoLink.printfTerminal("voltage:%.2f@%lu", batteryVoltage, millis());
 
     if (PestoLink.isConnected()) {
         float powerX = PestoLink.getAxis(0);
@@ -71,12 +77,23 @@ void loop() {
         }
         shooterButtonWasHeld = shooterButtonHeld;
 
-        if (shooterOn) {
+        // Hold button 3 for max shooter power, overriding the toggle
+        if (PestoLink.buttonHeld(3)) {
+            leftShooter.set(1.0);
+            rightShooter.set(1.0);
+        } else if (shooterOn) {
             leftShooter.set(SHOOTER_POWER);
             rightShooter.set(SHOOTER_POWER);
         } else {
             leftShooter.set(0.0);
             rightShooter.set(0.0);
+        }
+
+        // Hold button 2 to feed balls with the indexer
+        if (PestoLink.buttonHeld(2)) {
+            indexerMotor.set(1.0);
+        } else {
+            indexerMotor.set(0.0);
         }
 
         NoU3.setServiceLight(LIGHT_ENABLED);
